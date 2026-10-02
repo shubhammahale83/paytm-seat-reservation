@@ -28,6 +28,12 @@ public class ShowSeatRepository {
         return seats.stream().findFirst();
     }
 
+    public Optional<Map<String, Object>> findAndLockSeat(UUID showId, String seatLabel) {
+        String sql = "SELECT * FROM show_seats WHERE show_id = ? AND seat_label = ? FOR UPDATE";
+        List<Map<String, Object>> seats = jdbcTemplate.queryForList(sql, showId, seatLabel);
+        return seats.stream().findFirst();
+    }
+
     public List<Map<String, Object>> findByShowIdAndStatus(UUID showId, String status) {
         String sql = "SELECT * FROM show_seats WHERE show_id = ? AND status = ? ORDER BY seat_label ASC";
         return jdbcTemplate.queryForList(sql, showId, status);

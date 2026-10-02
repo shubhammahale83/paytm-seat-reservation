@@ -23,6 +23,19 @@ public class IdempotencyRecordRepository {
         return records.stream().findFirst();
     }
 
+    public void ensureRecordExists(UUID showId, UUID userId, String idempotencyKey, String requestHash) {
+        String sql = "INSERT INTO idempotency_records (id, show_id, user_id, idempotency_key, request_hash, status) " +
+                     "VALUES (?, ?, ?, ?, ?, 'PROCESSING') " +
+                     "ON CONFLICT (show_id, user_id, idempotency_key) DO NOTHING";
+        jdbcTemplate.update(sql, UUID.randomUUID(), showId, userId, idempotencyKey, requestHash);
+    }
+
+    public Optional<Map<String, Object>> findAndLockRecord(UUID showId, UUID userId, String idempotencyKey) {
+        String sql = "SELECT * FROM idempotency_records WHERE show_id = ? AND user_id = ? AND idempotency_key = ? FOR UPDATE";
+        List<Map<String, Object>> records = jdbcTemplate.queryForList(sql, showId, userId, idempotencyKey);
+        return records.stream().findFirst();
+    }
+
     public UUID save(UUID showId, UUID userId, String idempotencyKey, String requestHash, String status) {
         UUID id = UUID.randomUUID();
         String sql = "INSERT INTO idempotency_records (id, show_id, user_id, idempotency_key, request_hash, status) " +

@@ -26,6 +26,16 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(SeatConflictException.class)
+    public ResponseEntity<ErrorResponse> handleSeatConflictException(SeatConflictException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                List.of(ex.getMessage())
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(SeatReservationException.class)
     public ResponseEntity<ErrorResponse> handleSeatReservationException(SeatReservationException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
@@ -59,6 +69,16 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.value(),
                 "Validation Failed",
                 errors
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                List.of(ex.getMessage())
         );
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
