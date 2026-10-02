@@ -2,22 +2,23 @@ package com.paytm.reservation.dto;
 
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public class ReservationDto {
 
-    private Long id;
+    private UUID id;
 
     @NotNull(message = "Seat ID is required")
-    private Long seatId;
+    private UUID seatId;
 
-    private Long userId;
+    private UUID userId;
     private String status;
     private OffsetDateTime reservedAt;
 
     public ReservationDto() {
     }
 
-    public ReservationDto(Long id, Long seatId, Long userId, String status, OffsetDateTime reservedAt) {
+    public ReservationDto(UUID id, UUID seatId, UUID userId, String status, OffsetDateTime reservedAt) {
         this.id = id;
         this.seatId = seatId;
         this.userId = userId;
@@ -25,27 +26,27 @@ public class ReservationDto {
         this.reservedAt = reservedAt;
     }
 
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public Long getSeatId() {
+    public UUID getSeatId() {
         return seatId;
     }
 
-    public void setSeatId(Long seatId) {
+    public void setSeatId(UUID seatId) {
         this.seatId = seatId;
     }
 
-    public Long getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(Long userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

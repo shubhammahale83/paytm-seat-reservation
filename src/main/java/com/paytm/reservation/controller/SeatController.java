@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/seats")
@@ -24,7 +25,7 @@ public class SeatController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<SeatDto> getSeatById(@PathVariable Long id) {
+    public ResponseEntity<SeatDto> getSeatById(@PathVariable UUID id) {
         SeatDto seat = seatService.getSeatById(id);
         return ResponseEntity.ok(seat);
     }

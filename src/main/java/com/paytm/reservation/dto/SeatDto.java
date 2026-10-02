@@ -4,10 +4,11 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.util.UUID;
 
 public class SeatDto {
 
-    private Long id;
+    private UUID id;
 
     @NotBlank(message = "Seat number is required")
     private String seatNumber;
@@ -24,7 +25,7 @@ public class SeatDto {
     public SeatDto() {
     }
 
-    public SeatDto(Long id, String seatNumber, String seatClass, BigDecimal price, String status) {
+    public SeatDto(UUID id, String seatNumber, String seatClass, BigDecimal price, String status) {
         this.id = id;
         this.seatNumber = seatNumber;
         this.seatClass = seatClass;
@@ -32,11 +33,11 @@ public class SeatDto {
         this.status = status;
     }
 
-    public Long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

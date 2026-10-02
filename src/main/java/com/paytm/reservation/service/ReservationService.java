@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class ReservationService {
@@ -23,13 +24,12 @@ public class ReservationService {
     }
 
     @Transactional
-    public ReservationDto reserveSeat(Long userId, Long seatId) {
+    public ReservationDto reserveSeat(UUID userId, UUID seatId) {
         // Business logic placeholder
-        return new ReservationDto(1L, seatId, userId, "CONFIRMED", null);
+        return new ReservationDto(UUID.randomUUID(), seatId, userId, "PENDING", null);
     }
 
-    public List<ReservationDto> getUserReservations(Long userId) {
-        // Business logic placeholder
+    public List<ReservationDto> getUserReservations(UUID userId) {
         List<Map<String, Object>> reservations = reservationRepository.findByUserId(userId);
         if (reservations.isEmpty()) {
             return Collections.emptyList();
@@ -38,8 +38,7 @@ public class ReservationService {
     }
 
     @Transactional
-    public void cancelReservation(Long reservationId, Long userId) {
-        // Business logic placeholder
+    public void cancelReservation(UUID reservationId, UUID userId) {
         reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reservation", "id", reservationId));
     }

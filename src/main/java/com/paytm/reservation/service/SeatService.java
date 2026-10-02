@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class SeatService {
@@ -20,7 +21,6 @@ public class SeatService {
     }
 
     public List<SeatDto> getAllAvailableSeats() {
-        // Business logic placeholder
         List<Map<String, Object>> seats = seatRepository.findByStatus("AVAILABLE");
         if (seats.isEmpty()) {
             return Collections.emptyList();
@@ -28,8 +28,7 @@ public class SeatService {
         return seats.stream().map(this::mapToSeatDto).toList();
     }
 
-    public SeatDto getSeatById(Long id) {
-        // Business logic placeholder
+    public SeatDto getSeatById(UUID id) {
         return seatRepository.findById(id)
                 .map(this::mapToSeatDto)
                 .orElseThrow(() -> new ResourceNotFoundException("Seat", "id", id));
@@ -37,10 +36,13 @@ public class SeatService {
 
     private SeatDto mapToSeatDto(Map<String, Object> map) {
         SeatDto dto = new SeatDto();
-        dto.setId(((Number) map.get("id")).longValue());
-        dto.setSeatNumber((String) map.get("seat_number"));
-        dto.setSeatClass((String) map.get("seat_class"));
-        dto.setPrice((BigDecimal) map.get("price"));
+        dto.setId((UUID) map.get("id"));
+        dto.setSeatNumber((String) map.get("seat_label"));
+        dto.setSeatClass((String) map.get("seat_tier"));
+        Object priceObj = map.get("price_paise");
+        if (priceObj instanceof Number number) {
+            dto.setPrice(BigDecimal.valueOf(number.longValue(), 2));
+        }
         dto.setStatus((String) map.get("status"));
         return dto;
     }
