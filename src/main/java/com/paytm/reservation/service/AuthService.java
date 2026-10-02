@@ -29,7 +29,6 @@ public class AuthService {
     }
 
     public AuthResponse login(AuthRequest request) {
-        // Business logic placeholder
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
@@ -38,8 +37,8 @@ public class AuthService {
     }
 
     public void registerUser(AuthRequest request) {
-        // Business logic placeholder
         String encodedPassword = passwordEncoder.encode(request.getPassword());
-        userRepository.save(request.getUsername(), encodedPassword, request.getUsername() + "@paytm.com", "ROLE_USER");
+        String role = (request.getRole() != null && !request.getRole().isBlank()) ? request.getRole() : "USER";
+        userRepository.save(request.getUsername(), encodedPassword, request.getUsername() + "@paytm.com", role);
     }
 }

@@ -4,6 +4,7 @@ import com.paytm.reservation.dto.ReservationDto;
 import com.paytm.reservation.exception.ResourceNotFoundException;
 import com.paytm.reservation.repository.ReservationRepository;
 import com.paytm.reservation.repository.SeatRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,7 +40,16 @@ public class ReservationService {
 
     @Transactional
     public void cancelReservation(UUID reservationId, UUID userId) {
-        reservationRepository.findById(reservationId)
+        Map<String, Object> reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reservation", "id", reservationId));
+
+        Object resUserIdObj = reservation.get("user_id");
+        UUID resUserId = (resUserIdObj instanceof UUID uuid) ? uuid : UUID.fromString(resUserIdObj.toString());
+
+        if (!resUserId.equals(userId)) {
+            throw new AccessDeniedException("Forbidden: You can only cancel your own reservations");
+        }
+
+        reservationRepository.updateStatus(reservationId, "CANCELLED");
     }
 }
