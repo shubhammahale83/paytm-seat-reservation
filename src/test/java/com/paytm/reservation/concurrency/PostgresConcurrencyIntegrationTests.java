@@ -335,4 +335,94 @@ public class PostgresConcurrencyIntegrationTests {
         Map<String, Object> seatP1 = showSeatRepository.findByShowIdAndSeatLabel(showId, "P1").orElseThrow();
         assertEquals("AVAILABLE", seatP1.get("status"), "Seat P1 must remain AVAILABLE after failed multi-seat reservation (all-or-nothing)");
     }
+
+    @Test
+    void testConcurrentCancellationAndReservationSameSeat() throws Exception {
+        UUID showId = showRepository.save("Concurrent Cancel Show", "Desc", "Hall", Timestamp.from(Instant.now().plusSeconds(86400)), 5, 5, "ON_SALE");
+        showSeatRepository.save(showId, "S-CONC", "STANDARD", 2000L, "RESERVED");
+
+        UUID user1 = userRepository.save("canceller_user", passwordEncoder.encode("password"), "canceller@test.com", "USER");
+        UUID user2 = userRepository.save("reserver_user", passwordEncoder.encode("password"), "reserver@test.com", "USER");
+
+        // Set up initial confirmed reservation for User 1
+        UUID reservationId = reservationRepository.createReservation(
+                showId,
+                user1,
+                "S-CONC",
+                2000L,
+                "CONFIRMED",
+                Timestamp.from(Instant.now().plusSeconds(900))
+        );
+        showUserCounterRepository.ensureCounterExists(showId, user1);
+        showUserCounterRepository.incrementCount(showId, user1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch endLatch = new CountDownLatch(2);
+
+        AtomicInteger cancelSuccess = new AtomicInteger(0);
+        AtomicInteger reserveSuccess = new AtomicInteger(0);
+
+        // Thread 1: User 1 cancels reservation
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                reservationService.cancelReservation(reservationId, user1);
+                cancelSuccess.incrementAndGet();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            } finally {
+                endLatch.countDown();
+            }
+        });
+
+        // Thread 2: User 2 tries to reserve the same seat S-CONC
+        executor.submit(() -> {
+            try {
+                startLatch.await();
+                ReserveSeatRequest req = new ReserveSeatRequest(List.of("S-CONC"));
+                reservationService.reserveSeats(showId, user2, "KEY-CONC-RES", req);
+                reserveSuccess.incrementAndGet();
+            } catch (SeatConflictException ignored) {
+                // Allowed if reserve executed before cancel
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            } finally {
+                endLatch.countDown();
+            }
+        });
+
+        startLatch.countDown();
+        boolean finished = endLatch.await(10, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        assertTrue(finished, "Both concurrent threads must finish without deadlocking");
+        assertEquals(1, cancelSuccess.get(), "Cancellation must succeed");
+
+        Map<String, Object> resMap = reservationRepository.findById(reservationId).orElseThrow();
+        assertEquals("CANCELLED", resMap.get("status"));
+    }
+
+    @Test
+    void testCancellationNeverResurrectsSeatConfirmedByOther() throws Exception {
+        UUID showId = showRepository.save("Resurrect Test Show", "Desc", "Hall", Timestamp.from(Instant.now().plusSeconds(86400)), 5, 5, "ON_SALE");
+        // Seat status has already been modified to TAKEN/CONFIRMED by another transaction/owner
+        showSeatRepository.save(showId, "S-OTHER", "STANDARD", 2000L, "BLOCKED");
+
+        UUID user1 = userRepository.save("owner_user", passwordEncoder.encode("password"), "owner@test.com", "USER");
+
+        UUID reservationId = reservationRepository.createReservation(
+                showId,
+                user1,
+                "S-OTHER",
+                2000L,
+                "CONFIRMED",
+                Timestamp.from(Instant.now().plusSeconds(900))
+        );
+
+        reservationService.cancelReservation(reservationId, user1);
+
+        Map<String, Object> seatMap = showSeatRepository.findByShowIdAndSeatLabel(showId, "S-OTHER").orElseThrow();
+        assertEquals("BLOCKED", seatMap.get("status"), "Cancellation must NEVER resurrect a seat that is BLOCKED/held by another entity");
+    }
 }

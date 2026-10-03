@@ -141,13 +141,13 @@ public class SecurityIntegrationTests {
     @Test
     void whenUserCancelsOthersReservation_thenReturns403() throws Exception {
         UUID showId = showRepository.save("Show 1", "Desc", "Venue 1", Timestamp.from(Instant.now().plusSeconds(3600)), 100, 100, "UPCOMING");
-        showSeatRepository.save(showId, "A1", "STANDARD", 1000L, "AVAILABLE");
+        showSeatRepository.save(showId, "A1", "STANDARD", 1000L, "RESERVED");
         UUID reservationId = reservationRepository.createReservation(
                 showId,
                 user1Id,
                 "A1",
                 1000L,
-                "PENDING",
+                "CONFIRMED",
                 Timestamp.from(Instant.now().plusSeconds(300))
         );
 
@@ -160,13 +160,13 @@ public class SecurityIntegrationTests {
     @Test
     void whenUserCancelsOwnReservation_thenReturns204() throws Exception {
         UUID showId = showRepository.save("Show 2", "Desc", "Venue 2", Timestamp.from(Instant.now().plusSeconds(3600)), 100, 100, "UPCOMING");
-        showSeatRepository.save(showId, "B1", "STANDARD", 1200L, "AVAILABLE");
+        showSeatRepository.save(showId, "B1", "STANDARD", 1200L, "RESERVED");
         UUID reservationId = reservationRepository.createReservation(
                 showId,
                 user1Id,
                 "B1",
                 1200L,
-                "PENDING",
+                "CONFIRMED",
                 Timestamp.from(Instant.now().plusSeconds(300))
         );
 
@@ -210,5 +210,60 @@ public class SecurityIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void whenCancelConfirmedReservationViaPost_thenReturns200() throws Exception {
+        UUID showId = showRepository.save("Show 5", "Desc", "Venue 5", Timestamp.from(Instant.now().plusSeconds(3600)), 100, 100, "ON_SALE");
+        showSeatRepository.save(showId, "C1", "STANDARD", 1000L, "RESERVED");
+        UUID reservationId = reservationRepository.createReservation(
+                showId,
+                user1Id,
+                "C1",
+                1000L,
+                "CONFIRMED",
+                Timestamp.from(Instant.now().plusSeconds(300))
+        );
+
+        mockMvc.perform(post("/reservations/" + reservationId + "/cancel")
+                        .header("Authorization", "Bearer " + user1Token))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void whenCancelOthersConfirmedReservationViaPost_thenReturns403() throws Exception {
+        UUID showId = showRepository.save("Show 6", "Desc", "Venue 6", Timestamp.from(Instant.now().plusSeconds(3600)), 100, 100, "ON_SALE");
+        showSeatRepository.save(showId, "C2", "STANDARD", 1000L, "RESERVED");
+        UUID reservationId = reservationRepository.createReservation(
+                showId,
+                user1Id,
+                "C2",
+                1000L,
+                "CONFIRMED",
+                Timestamp.from(Instant.now().plusSeconds(300))
+        );
+
+        // User2 attempts to cancel User1's reservation
+        mockMvc.perform(post("/reservations/" + reservationId + "/cancel")
+                        .header("Authorization", "Bearer " + user2Token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void whenCancelUnconfirmedReservationViaPost_thenReturns400() throws Exception {
+        UUID showId = showRepository.save("Show 7", "Desc", "Venue 7", Timestamp.from(Instant.now().plusSeconds(3600)), 100, 100, "ON_SALE");
+        showSeatRepository.save(showId, "C3", "STANDARD", 1000L, "AVAILABLE");
+        UUID reservationId = reservationRepository.createReservation(
+                showId,
+                user1Id,
+                "C3",
+                1000L,
+                "CANCELLED",
+                Timestamp.from(Instant.now().plusSeconds(300))
+        );
+
+        mockMvc.perform(post("/reservations/" + reservationId + "/cancel")
+                        .header("Authorization", "Bearer " + user1Token))
+                .andExpect(status().isBadRequest());
     }
 }

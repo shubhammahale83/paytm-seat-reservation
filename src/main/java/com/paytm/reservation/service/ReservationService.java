@@ -7,6 +7,7 @@ import com.paytm.reservation.dto.ReservationResultDto;
 import com.paytm.reservation.dto.ReserveSeatRequest;
 import com.paytm.reservation.exception.ResourceNotFoundException;
 import com.paytm.reservation.exception.SeatConflictException;
+import com.paytm.reservation.exception.SeatReservationException;
 import com.paytm.reservation.repository.IdempotencyRecordRepository;
 import com.paytm.reservation.repository.ReservationRepository;
 import com.paytm.reservation.repository.ShowRepository;
@@ -205,11 +206,13 @@ public class ReservationService {
         return Collections.emptyList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void cancelReservation(UUID reservationId, UUID userId) {
-        Map<String, Object> reservation = reservationRepository.findById(reservationId)
+        // 1. Lock reservation row using SELECT FOR UPDATE
+        Map<String, Object> reservation = reservationRepository.findAndLockById(reservationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reservation", "id", reservationId));
 
+        // 2. Validate authenticated user is reservation owner
         Object resUserIdObj = reservation.get("user_id");
         UUID resUserId = (resUserIdObj instanceof UUID uuid) ? uuid : UUID.fromString(resUserIdObj.toString());
 
@@ -217,6 +220,34 @@ public class ReservationService {
             throw new AccessDeniedException("Forbidden: You can only cancel your own reservations");
         }
 
+        // 3. Ensure only CONFIRMED reservations can be cancelled
+        String reservationStatus = (String) reservation.get("status");
+        if (!"CONFIRMED".equals(reservationStatus)) {
+            throw new SeatReservationException("Only CONFIRMED reservations can be cancelled. Current status: " + reservationStatus);
+        }
+
+        Object showIdObj = reservation.get("show_id");
+        UUID showId = (showIdObj instanceof UUID uuid) ? uuid : UUID.fromString(showIdObj.toString());
+        String seatLabel = (String) reservation.get("seat_label");
+
+        // 4. Lock seat rows in deterministic order
+        List<String> sortedSeats = List.of(seatLabel).stream().sorted().toList();
+        for (String seat : sortedSeats) {
+            Optional<Map<String, Object>> seatOpt = showSeatRepository.findAndLockSeat(showId, seat);
+            if (seatOpt.isPresent()) {
+                Map<String, Object> seatMap = seatOpt.get();
+                String currentSeatStatus = (String) seatMap.get("status");
+
+                // Cancellation must never resurrect a seat that another transaction has already confirmed/changed
+                if ("CONFIRMED".equals(currentSeatStatus) || "RESERVED".equals(currentSeatStatus)) {
+                    showSeatRepository.updateStatus(showId, seat, "AVAILABLE");
+                    showRepository.incrementAvailableSeats(showId, 1);
+                    showUserCounterRepository.decrementCount(showId, userId);
+                }
+            }
+        }
+
+        // 5. Update reservation status to CANCELLED
         reservationRepository.updateStatus(reservationId, "CANCELLED");
     }
 }

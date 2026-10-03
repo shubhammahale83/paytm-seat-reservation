@@ -34,6 +34,12 @@ public class ReservationRepository {
         return reservations.stream().findFirst();
     }
 
+    public Optional<Map<String, Object>> findAndLockById(UUID id) {
+        String sql = "SELECT * FROM reservations WHERE id = ? FOR UPDATE";
+        List<Map<String, Object>> reservations = jdbcTemplate.queryForList(sql, id);
+        return reservations.stream().findFirst();
+    }
+
     public UUID createReservation(UUID showId, UUID userId, String seatLabel, long pricePaise, String status, Timestamp expiresAt) {
         UUID id = UUID.randomUUID();
         String sql = "INSERT INTO reservations (id, show_id, user_id, seat_label, price_paise, status, expires_at) " +

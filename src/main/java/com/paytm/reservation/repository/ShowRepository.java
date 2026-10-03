@@ -52,6 +52,11 @@ public class ShowRepository {
         return jdbcTemplate.update(sql, count, showId);
     }
 
+    public int incrementAvailableSeats(UUID showId, int count) {
+        String sql = "UPDATE shows SET available_seats = LEAST(total_seats, available_seats + ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+        return jdbcTemplate.update(sql, count, showId);
+    }
+
     public int updateStatus(UUID showId, String status) {
         String sql = "UPDATE shows SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
         return jdbcTemplate.update(sql, status, showId);

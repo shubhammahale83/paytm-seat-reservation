@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/reservations")
+@RequestMapping({"/api/reservations", "/reservations"})
 public class ReservationController {
 
     private final ReservationService reservationService;
@@ -42,9 +42,19 @@ public class ReservationController {
         return ResponseEntity.ok(reservations);
     }
 
+    @PostMapping("/{reservationId}/cancel")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ResponseEntity<Void> cancelReservationPost(
+            @PathVariable UUID reservationId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        UUID userId = currentUser.getId();
+        reservationService.cancelReservation(reservationId, userId);
+        return ResponseEntity.ok().build();
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    public ResponseEntity<Void> cancelReservation(
+    public ResponseEntity<Void> cancelReservationDelete(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal currentUser) {
         UUID userId = currentUser.getId();
