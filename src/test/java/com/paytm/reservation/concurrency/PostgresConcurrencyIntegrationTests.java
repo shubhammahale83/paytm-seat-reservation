@@ -425,4 +425,17 @@ public class PostgresConcurrencyIntegrationTests {
         Map<String, Object> seatMap = showSeatRepository.findByShowIdAndSeatLabel(showId, "S-OTHER").orElseThrow();
         assertEquals("BLOCKED", seatMap.get("status"), "Cancellation must NEVER resurrect a seat that is BLOCKED/held by another entity");
     }
+
+    @Test
+    void testDataIntegrityViolationHandling() throws Exception {
+        UUID showId = showRepository.save("Constraint Test Show", "Desc", "Hall", Timestamp.from(Instant.now().plusSeconds(86400)), 5, 5, "ON_SALE");
+        UUID userId = userRepository.save("constraint_user", passwordEncoder.encode("password"), "constraint@test.com", "USER");
+
+        // Attempting to directly insert duplicate user counter row to trigger DataIntegrityViolationException
+        showUserCounterRepository.ensureCounterExists(showId, userId);
+        assertThrows(Exception.class, () -> {
+            jdbcTemplate.update("INSERT INTO show_user_counters (id, show_id, user_id, reserved_count) VALUES (?, ?, ?, 0)",
+                    UUID.randomUUID(), showId, userId);
+        });
+    }
 }

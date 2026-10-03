@@ -252,7 +252,12 @@ public class ReservationService {
         UUID showId = (showIdObj instanceof UUID uuid) ? uuid : UUID.fromString(showIdObj.toString());
         String seatLabel = (String) reservation.get("seat_label");
 
-        // 4. Lock seat rows in deterministic order
+        // 4. Lock user counter FIRST, then seat rows to maintain strict global lock hierarchy:
+        // Global Lock Hierarchy: Idempotency Record -> User Counter -> Seats (sorted) -> Reservation
+        showUserCounterRepository.ensureCounterExists(showId, userId);
+        showUserCounterRepository.findAndLockCounter(showId, userId);
+
+        // 5. Lock seat rows in deterministic order
         List<String> sortedSeats = List.of(seatLabel).stream().sorted().toList();
         for (String seat : sortedSeats) {
             Optional<Map<String, Object>> seatOpt = showSeatRepository.findAndLockSeat(showId, seat);
@@ -269,7 +274,7 @@ public class ReservationService {
             }
         }
 
-        // 5. Update reservation status to CANCELLED
+        // 6. Update reservation status to CANCELLED
         reservationRepository.updateStatus(reservationId, "CANCELLED");
     }
 }
