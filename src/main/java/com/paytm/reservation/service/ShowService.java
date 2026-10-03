@@ -108,6 +108,9 @@ public class ShowService {
                 availableSeats,
                 status
         );
+        for (int i = 1; i <= showDto.getTotalSeats(); i++) {
+            showSeatRepository.save(id, "S" + i, "STANDARD", 1000L, "AVAILABLE");
+        }
         showDto.setId(id);
         showDto.setAvailableSeats(availableSeats);
         showDto.setStatus(status);
