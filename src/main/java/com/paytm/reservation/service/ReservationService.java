@@ -22,6 +22,9 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.*;
 
+import com.paytm.reservation.metrics.ReservationMetrics;
+import java.util.concurrent.TimeUnit;
+
 @Service
 public class ReservationService {
 
@@ -33,23 +36,35 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final IdempotencyRecordRepository idempotencyRecordRepository;
     private final ObjectMapper objectMapper;
+    private final ReservationMetrics reservationMetrics;
 
     public ReservationService(ShowRepository showRepository,
                               ShowSeatRepository showSeatRepository,
                               ShowUserCounterRepository showUserCounterRepository,
                               ReservationRepository reservationRepository,
                               IdempotencyRecordRepository idempotencyRecordRepository,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              ReservationMetrics reservationMetrics) {
         this.showRepository = showRepository;
         this.showSeatRepository = showSeatRepository;
         this.showUserCounterRepository = showUserCounterRepository;
         this.reservationRepository = reservationRepository;
         this.idempotencyRecordRepository = idempotencyRecordRepository;
         this.objectMapper = objectMapper;
+        this.reservationMetrics = reservationMetrics;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ReservationResultDto reserveSeats(UUID showId, UUID userId, String idempotencyKey, ReserveSeatRequest request) {
+        long startNanos = System.nanoTime();
+        try {
+            return doReserveSeats(showId, userId, idempotencyKey, request);
+        } finally {
+            reservationMetrics.getReservationTimer().record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    private ReservationResultDto doReserveSeats(UUID showId, UUID userId, String idempotencyKey, ReserveSeatRequest request) {
         if (request == null || request.getSeats() == null || request.getSeats().isEmpty()) {
             throw new IllegalArgumentException("Seats list cannot be empty");
         }
@@ -96,9 +111,11 @@ public class ReservationService {
 
         if ("COMPLETED".equals(existingStatus)) {
             if (!requestHash.equals(existingHash)) {
+                reservationMetrics.recordDeclinedIdempotencyKeyReuse();
                 throw new SeatConflictException("Idempotency key reused with different seat list");
             }
             try {
+                reservationMetrics.recordDeclinedIdempotentReplay();
                 return objectMapper.readValue(existingPayload, ReservationResultDto.class);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException("Error parsing cached idempotency payload", e);
@@ -106,6 +123,7 @@ public class ReservationService {
         }
 
         if (existingHash != null && !existingHash.equals(requestHash)) {
+            reservationMetrics.recordDeclinedIdempotencyKeyReuse();
             throw new SeatConflictException("Idempotency key reused with different seat list");
         }
 
@@ -126,6 +144,7 @@ public class ReservationService {
         int currentReservedCount = ((Number) userCounter.get("reserved_count")).intValue();
 
         if (currentReservedCount + sortedSeats.size() > MAX_PER_USER_LIMIT) {
+            reservationMetrics.recordDeclinedPerUserLimit();
             throw new SeatConflictException("Per-user reservation limit exceeded. Current: " + currentReservedCount + ", Requested: " + sortedSeats.size() + ", Max: " + MAX_PER_USER_LIMIT);
         }
 
@@ -136,12 +155,14 @@ public class ReservationService {
         for (String seatLabel : sortedSeats) {
             Optional<Map<String, Object>> seatOpt = showSeatRepository.findAndLockSeat(showId, seatLabel);
             if (seatOpt.isEmpty()) {
+                reservationMetrics.recordDeclinedSeatTaken();
                 throw new SeatConflictException("SEAT_TAKEN: Seat " + seatLabel + " does not exist for this show");
             }
             Map<String, Object> seat = seatOpt.get();
             String status = (String) seat.get("status");
 
             if (!"AVAILABLE".equals(status)) {
+                reservationMetrics.recordDeclinedSeatTaken();
                 throw new SeatConflictException("SEAT_TAKEN: Seat " + seatLabel + " is taken or unavailable");
             }
 
@@ -190,6 +211,7 @@ public class ReservationService {
             throw new RuntimeException("Failed to serialize reservation result", e);
         }
 
+        reservationMetrics.recordConfirmed();
         return result;
     }
 

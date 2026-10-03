@@ -61,4 +61,10 @@ public class ShowRepository {
         String sql = "UPDATE shows SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
         return jdbcTemplate.update(sql, status, showId);
     }
+
+    public int getTotalAvailableSeats() {
+        String sql = "SELECT COALESCE(SUM(available_seats), 0) FROM shows";
+        Integer result = jdbcTemplate.queryForObject(sql, Integer.class);
+        return result != null ? result : 0;
+    }
 }

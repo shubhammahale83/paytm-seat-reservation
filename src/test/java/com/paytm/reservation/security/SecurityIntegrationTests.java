@@ -266,4 +266,45 @@ public class SecurityIntegrationTests {
                         .header("Authorization", "Bearer " + user1Token))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void whenGetShowById_thenReturnsShowDetailsWithSeatCounts() throws Exception {
+        UUID showId = showRepository.save("Show Detail Test", "Desc", "Auditorium 3", Timestamp.from(Instant.now().plusSeconds(3600)), 2, 1, "ON_SALE");
+        showSeatRepository.save(showId, "D1", "STANDARD", 1000L, "AVAILABLE");
+        showSeatRepository.save(showId, "D2", "STANDARD", 1000L, "RESERVED");
+
+        mockMvc.perform(get("/shows/" + showId))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Request-ID"))
+                .andExpect(jsonPath("$.id").value(showId.toString()))
+                .andExpect(jsonPath("$.title").value("Show Detail Test"))
+                .andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.available").value(1))
+                .andExpect(jsonPath("$.held").value(0))
+                .andExpect(jsonPath("$.confirmed").value(1))
+                .andExpect(jsonPath("$.seats[0].seat_label").value("D1"))
+                .andExpect(jsonPath("$.seats[1].seat_label").value("D2"));
+    }
+
+    @Test
+    void testLivenessAndReadinessProbes() throws Exception {
+        mockMvc.perform(get("/livez"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Request-ID"))
+                .andExpect(jsonPath("$.status").value("UP"));
+
+        mockMvc.perform(get("/readyz"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Request-ID"))
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.database").value("UP"));
+    }
+
+    @Test
+    void testPrometheusActuatorEndpoint() throws Exception {
+        mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("seats_available")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("reservations_total")));
+    }
 }

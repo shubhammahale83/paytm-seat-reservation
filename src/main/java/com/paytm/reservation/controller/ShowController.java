@@ -2,6 +2,7 @@ package com.paytm.reservation.controller;
 
 import com.paytm.reservation.dto.ReservationResultDto;
 import com.paytm.reservation.dto.ReserveSeatRequest;
+import com.paytm.reservation.dto.ShowDetailDto;
 import com.paytm.reservation.dto.ShowDto;
 import com.paytm.reservation.security.UserPrincipal;
 import com.paytm.reservation.service.ReservationService;
@@ -38,6 +39,12 @@ public class ShowController {
     @GetMapping
     public ResponseEntity<List<ShowDto>> getAllShows() {
         return ResponseEntity.ok(showService.getAllShows());
+    }
+
+    @GetMapping("/{showId}")
+    public ResponseEntity<ShowDetailDto> getShowById(@PathVariable UUID showId) {
+        ShowDetailDto showDetail = showService.getShowDetails(showId);
+        return ResponseEntity.ok(showDetail);
     }
 
     @PostMapping("/{showId}/reserve")

@@ -28,7 +28,7 @@ public class LoggingAspect {
             log.debug("Enter: {}.{}() with argument[s] = {}",
                     joinPoint.getSignature().getDeclaringTypeName(),
                     joinPoint.getSignature().getName(),
-                    Arrays.toString(joinPoint.getArgs()));
+                    sanitizeArgs(joinPoint.getArgs()));
         }
         try {
             Object result = joinPoint.proceed();
@@ -41,10 +41,30 @@ public class LoggingAspect {
             return result;
         } catch (IllegalArgumentException e) {
             log.error("Illegal argument: {} in {}.{}()",
-                    Arrays.toString(joinPoint.getArgs()),
+                    sanitizeArgs(joinPoint.getArgs()),
                     joinPoint.getSignature().getDeclaringTypeName(),
                     joinPoint.getSignature().getName());
             throw e;
         }
+    }
+
+    private String sanitizeArgs(Object[] args) {
+        if (args == null || args.length == 0) {
+            return "[]";
+        }
+        Object[] sanitized = new Object[args.length];
+        for (int i = 0; i < args.length; i++) {
+            Object arg = args[i];
+            if (arg instanceof String str) {
+                if (str.toLowerCase().contains("bearer ") || str.toLowerCase().contains("authorization") || str.startsWith("eyJ")) {
+                    sanitized[i] = "[REDACTED]";
+                } else {
+                    sanitized[i] = str;
+                }
+            } else {
+                sanitized[i] = arg;
+            }
+        }
+        return Arrays.toString(sanitized);
     }
 }
