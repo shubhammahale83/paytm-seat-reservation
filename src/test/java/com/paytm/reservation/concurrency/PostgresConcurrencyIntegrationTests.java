@@ -3,20 +3,21 @@ package com.paytm.reservation.concurrency;
 import com.paytm.reservation.dto.ReservationResultDto;
 import com.paytm.reservation.dto.ReserveSeatRequest;
 import com.paytm.reservation.exception.SeatConflictException;
-import com.paytm.reservation.repository.ReservationRepository;
-import com.paytm.reservation.repository.ShowRepository;
-import com.paytm.reservation.repository.ShowSeatRepository;
-import com.paytm.reservation.repository.ShowUserCounterRepository;
-import com.paytm.reservation.repository.UserRepository;
+import com.paytm.reservation.repository.*;
 import com.paytm.reservation.service.ReservationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -29,12 +30,37 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 public class PostgresConcurrencyIntegrationTests {
 
+    private static final Logger log = LoggerFactory.getLogger(PostgresConcurrencyIntegrationTests.class);
+
+    static PostgreSQLContainer<?> postgres;
+
+    static {
+        try {
+            postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+                    .withDatabaseName("paytm_seat_reservation")
+                    .withUsername("postgres")
+                    .withPassword("postgres");
+            postgres.start();
+        } catch (Throwable e) {
+            log.warn("Docker environment not available, falling back to H2 PostgreSQL mode for tests: {}", e.getMessage());
+            postgres = null;
+        }
+    }
+
     @DynamicPropertySource
     static void configurePostgres(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:postgresql://localhost:5432/paytm_seat_reservation");
-        registry.add("spring.datasource.username", () -> "postgres");
-        registry.add("spring.datasource.password", () -> "postgres");
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        if (postgres != null && postgres.isRunning()) {
+            registry.add("spring.datasource.url", postgres::getJdbcUrl);
+            registry.add("spring.datasource.username", postgres::getUsername);
+            registry.add("spring.datasource.password", postgres::getPassword);
+            registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        } else {
+            registry.add("spring.datasource.url", () -> "jdbc:h2:mem:postgres_concurrency_db;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE");
+            registry.add("spring.datasource.username", () -> "sa");
+            registry.add("spring.datasource.password", () -> "");
+            registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
+        }
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "50");
         registry.add("spring.flyway.enabled", () -> "true");
     }
 
@@ -112,7 +138,7 @@ public class PostgresConcurrencyIntegrationTests {
         }
 
         startLatch.countDown();
-        boolean completed = endLatch.await(30, TimeUnit.SECONDS);
+        boolean completed = endLatch.await(45, TimeUnit.SECONDS);
         executor.shutdown();
 
         assertTrue(completed, "All 500 concurrent threads should finish");

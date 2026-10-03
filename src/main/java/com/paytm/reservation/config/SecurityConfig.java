@@ -48,8 +48,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/shows").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/shows/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/shows", "/shows").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/shows/**", "/shows/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/shows/*/reserve", "/shows/*/reserve").hasAnyRole("USER", "ADMIN")
                 .anyRequest().authenticated()
             );
 

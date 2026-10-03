@@ -58,6 +58,7 @@ public class ReservationService {
 
         // 1. Normalize and sort requested seat labels
         List<String> sortedSeats = request.getSeats().stream()
+                .filter(Objects::nonNull)
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .distinct()
@@ -74,10 +75,19 @@ public class ReservationService {
         Map<String, Object> show = showRepository.findById(showId)
                 .orElseThrow(() -> new ResourceNotFoundException("Show", "id", showId));
 
-        // 3. Idempotency Lock using SELECT FOR UPDATE
-        idempotencyRecordRepository.ensureRecordExists(showId, userId, idempotencyKey, requestHash);
-        Map<String, Object> idempotencyRecord = idempotencyRecordRepository.findAndLockRecord(showId, userId, idempotencyKey)
-                .orElseThrow(() -> new IllegalStateException("Idempotency record missing"));
+        // 3. Idempotency Lock using SELECT FOR UPDATE with retry
+        Map<String, Object> idempotencyRecord = null;
+        for (int i = 0; i < 3; i++) {
+            idempotencyRecordRepository.ensureRecordExists(showId, userId, idempotencyKey, requestHash);
+            Optional<Map<String, Object>> recOpt = idempotencyRecordRepository.findAndLockRecord(showId, userId, idempotencyKey);
+            if (recOpt.isPresent()) {
+                idempotencyRecord = recOpt.get();
+                break;
+            }
+        }
+        if (idempotencyRecord == null) {
+            throw new SeatConflictException("Could not acquire idempotency record lock");
+        }
 
         String existingStatus = (String) idempotencyRecord.get("status");
         String existingHash = (String) idempotencyRecord.get("request_hash");
@@ -99,9 +109,18 @@ public class ReservationService {
         }
 
         // 4. Lock User Counter as Serialization Point for Per-User Quota
-        showUserCounterRepository.ensureCounterExists(showId, userId);
-        Map<String, Object> userCounter = showUserCounterRepository.findAndLockCounter(showId, userId)
-                .orElseThrow(() -> new IllegalStateException("User counter missing"));
+        Map<String, Object> userCounter = null;
+        for (int i = 0; i < 3; i++) {
+            showUserCounterRepository.ensureCounterExists(showId, userId);
+            Optional<Map<String, Object>> counterOpt = showUserCounterRepository.findAndLockCounter(showId, userId);
+            if (counterOpt.isPresent()) {
+                userCounter = counterOpt.get();
+                break;
+            }
+        }
+        if (userCounter == null) {
+            throw new SeatConflictException("Could not acquire user counter lock");
+        }
 
         int currentReservedCount = ((Number) userCounter.get("reserved_count")).intValue();
 
@@ -116,13 +135,13 @@ public class ReservationService {
         for (String seatLabel : sortedSeats) {
             Optional<Map<String, Object>> seatOpt = showSeatRepository.findAndLockSeat(showId, seatLabel);
             if (seatOpt.isEmpty()) {
-                throw new SeatConflictException("Seat " + seatLabel + " does not exist for this show");
+                throw new SeatConflictException("SEAT_TAKEN: Seat " + seatLabel + " does not exist for this show");
             }
             Map<String, Object> seat = seatOpt.get();
             String status = (String) seat.get("status");
 
             if (!"AVAILABLE".equals(status)) {
-                throw new SeatConflictException("Seat " + seatLabel + " is taken or unavailable");
+                throw new SeatConflictException("SEAT_TAKEN: Seat " + seatLabel + " is taken or unavailable");
             }
 
             totalPricePaise += ((Number) seat.get("price_paise")).longValue();

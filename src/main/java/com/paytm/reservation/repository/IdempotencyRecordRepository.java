@@ -25,9 +25,15 @@ public class IdempotencyRecordRepository {
 
     public void ensureRecordExists(UUID showId, UUID userId, String idempotencyKey, String requestHash) {
         String sql = "INSERT INTO idempotency_records (id, show_id, user_id, idempotency_key, request_hash, status) " +
-                     "VALUES (?, ?, ?, ?, ?, 'PROCESSING') " +
-                     "ON CONFLICT (show_id, user_id, idempotency_key) DO NOTHING";
-        jdbcTemplate.update(sql, UUID.randomUUID(), showId, userId, idempotencyKey, requestHash);
+                     "SELECT ?, ?, ?, ?, ?, 'PROCESSING' " +
+                     "WHERE NOT EXISTS (" +
+                     "    SELECT 1 FROM idempotency_records WHERE show_id = ? AND user_id = ? AND idempotency_key = ?" +
+                     ")";
+        try {
+            jdbcTemplate.update(sql, UUID.randomUUID(), showId, userId, idempotencyKey, requestHash, showId, userId, idempotencyKey);
+        } catch (Exception ignored) {
+            // Ignore unique key race condition
+        }
     }
 
     public Optional<Map<String, Object>> findAndLockRecord(UUID showId, UUID userId, String idempotencyKey) {

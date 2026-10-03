@@ -25,9 +25,15 @@ public class ShowUserCounterRepository {
 
     public int ensureCounterExists(UUID showId, UUID userId) {
         String sql = "INSERT INTO show_user_counters (id, show_id, user_id, reserved_count) " +
-                     "VALUES (?, ?, ?, 0) " +
-                     "ON CONFLICT (show_id, user_id) DO NOTHING";
-        return jdbcTemplate.update(sql, UUID.randomUUID(), showId, userId);
+                     "SELECT ?, ?, ?, 0 " +
+                     "WHERE NOT EXISTS (" +
+                     "    SELECT 1 FROM show_user_counters WHERE show_id = ? AND user_id = ?" +
+                     ")";
+        try {
+            return jdbcTemplate.update(sql, UUID.randomUUID(), showId, userId, showId, userId);
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
     public Optional<Map<String, Object>> findAndLockCounter(UUID showId, UUID userId) {

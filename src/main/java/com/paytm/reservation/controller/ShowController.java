@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/shows")
+@RequestMapping({"/api/shows", "/shows"})
 public class ShowController {
 
     private final ShowService showService;

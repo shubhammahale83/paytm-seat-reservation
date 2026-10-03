@@ -175,4 +175,40 @@ public class SecurityIntegrationTests {
                         .header("Authorization", "Bearer " + user1Token))
                 .andExpect(status().isNoContent());
     }
+
+    @Test
+    void whenReserveSeatsViaShowsEndpoint_thenReturns201() throws Exception {
+        UUID showId = showRepository.save("Show 3", "Desc", "Venue 3", Timestamp.from(Instant.now().plusSeconds(3600)), 100, 100, "ON_SALE");
+        showSeatRepository.save(showId, "A1", "STANDARD", 1500L, "AVAILABLE");
+        showSeatRepository.save(showId, "A2", "STANDARD", 1500L, "AVAILABLE");
+
+        String requestBody = "{\"seats\":[\"A1\", \"A2\"]}";
+
+        mockMvc.perform(post("/shows/" + showId + "/reserve")
+                        .header("Authorization", "Bearer " + user1Token)
+                        .header("Idempotency-Key", "TEST-KEY-100")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.showId").value(showId.toString()))
+                .andExpect(jsonPath("$.userId").value(user1Id.toString()))
+                .andExpect(jsonPath("$.seats[0]").value("A1"))
+                .andExpect(jsonPath("$.seats[1]").value("A2"))
+                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void whenReserveSeatsTaken_thenReturns409() throws Exception {
+        UUID showId = showRepository.save("Show 4", "Desc", "Venue 4", Timestamp.from(Instant.now().plusSeconds(3600)), 100, 100, "ON_SALE");
+        showSeatRepository.save(showId, "A1", "STANDARD", 1500L, "RESERVED");
+
+        String requestBody = "{\"seats\":[\"A1\"]}";
+
+        mockMvc.perform(post("/shows/" + showId + "/reserve")
+                        .header("Authorization", "Bearer " + user1Token)
+                        .header("Idempotency-Key", "TEST-KEY-101")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isConflict());
+    }
 }
