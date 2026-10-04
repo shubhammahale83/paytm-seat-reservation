@@ -46,6 +46,22 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler({
+            org.springframework.dao.PessimisticLockingFailureException.class,
+            org.springframework.dao.CannotAcquireLockException.class,
+            org.springframework.dao.TransientDataAccessException.class,
+            org.springframework.dao.CannotGetJdbcConnectionException.class,
+            org.springframework.transaction.TransactionException.class
+    })
+    public ResponseEntity<ErrorResponse> handleLockAndConnectionExceptions(Exception ex) {
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "SEAT_TAKEN: High concurrency contention - lock or connection timeout",
+                List.of(ex.getMessage() != null ? ex.getMessage() : "Lock contention")
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(org.springframework.dao.DataIntegrityViolationException ex) {
         ErrorResponse errorResponse = new ErrorResponse(
@@ -55,6 +71,7 @@ public class GlobalExceptionHandler {
         );
         return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
     }
+
 
     @ExceptionHandler(UnauthorizedAccessException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedAccessException(UnauthorizedAccessException ex) {

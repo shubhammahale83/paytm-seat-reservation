@@ -75,7 +75,8 @@ def generate_jwt(user_id: str, role: str, secret: str) -> str:
     return f"{encoded_header}.{encoded_payload}.{encoded_signature}"
 
 
-def make_request(url, method="GET", headers=None, body_dict=None, timeout=15):
+def make_request(url, method="GET", headers=None, body_dict=None, timeout=30):
+
     if headers is None:
         headers = {}
 
