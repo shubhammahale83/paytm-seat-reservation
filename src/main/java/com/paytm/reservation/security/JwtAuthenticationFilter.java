@@ -39,8 +39,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 UUID userId = tokenProvider.getUserIdFromJwt(jwt);
+                String role = tokenProvider.getRoleFromJwt(jwt);
 
-                UserDetails userDetails = userDetailsService.loadUserById(userId);
+                UserDetails userDetails;
+                try {
+                    userDetails = userDetailsService.loadUserById(userId);
+                } catch (Exception ex) {
+                    String userRole = (role != null && !role.isBlank()) ? role : "USER";
+                    userDetails = UserPrincipal.create(userId, "jwt_user_" + userId, "", userRole);
+                }
+
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -53,6 +61,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
+
 
     private String getJwtFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
