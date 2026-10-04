@@ -1,31 +1,45 @@
 package com.paytm.reservation.dto;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ShowDto {
 
     private UUID id;
 
-    @NotBlank(message = "Title is required")
+    @JsonProperty("title")
+    @JsonAlias({"name", "title"})
     private String title;
 
     private String description;
 
-    @NotBlank(message = "Venue is required")
     private String venue;
 
-    @NotNull(message = "Show time is required")
+    @JsonProperty("showTime")
+    @JsonAlias({"showTime", "show_time"})
     private Timestamp showTime;
 
-    @Min(value = 1, message = "Total seats must be at least 1")
-    private int totalSeats;
+    @JsonProperty("totalSeats")
+    @JsonAlias({"totalSeats", "total_seats"})
+    private Integer totalSeats;
 
-    private int availableSeats;
+    @JsonProperty("availableSeats")
+    @JsonAlias({"availableSeats", "available_seats"})
+    private Integer availableSeats;
+
     private String status;
+
+    private List<String> seats;
+
+    @JsonProperty("pricePaise")
+    @JsonAlias({"price_paise", "pricePaise"})
+    private Long pricePaise;
 
     public ShowDto() {
     }
@@ -43,18 +57,40 @@ public class ShowDto {
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
+
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
-    public String getVenue() { return venue; }
+
+    public String getVenue() { return venue != null ? venue : "Main Arena"; }
     public void setVenue(String venue) { this.venue = venue; }
-    public Timestamp getShowTime() { return showTime; }
+
+    public Timestamp getShowTime() { return showTime != null ? showTime : Timestamp.from(Instant.now().plusSeconds(86400)); }
     public void setShowTime(Timestamp showTime) { this.showTime = showTime; }
-    public int getTotalSeats() { return totalSeats; }
-    public void setTotalSeats(int totalSeats) { this.totalSeats = totalSeats; }
-    public int getAvailableSeats() { return availableSeats; }
-    public void setAvailableSeats(int availableSeats) { this.availableSeats = availableSeats; }
+
+    public int getTotalSeats() {
+        if (seats != null && !seats.isEmpty()) {
+            return seats.size();
+        }
+        return totalSeats != null ? totalSeats : 0;
+    }
+    public void setTotalSeats(Integer totalSeats) { this.totalSeats = totalSeats; }
+
+    public int getAvailableSeats() {
+        return availableSeats != null ? availableSeats : getTotalSeats();
+    }
+    public void setAvailableSeats(Integer availableSeats) { this.availableSeats = availableSeats; }
+
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public List<String> getSeats() { return seats; }
+    public void setSeats(List<String> seats) { this.seats = seats; }
+
+    public Long getPricePaise() { return pricePaise != null ? pricePaise : 25000L; }
+    public void setPricePaise(Long pricePaise) { this.pricePaise = pricePaise; }
 }
+
+

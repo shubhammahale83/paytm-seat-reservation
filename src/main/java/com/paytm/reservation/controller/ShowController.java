@@ -51,11 +51,20 @@ public class ShowController {
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<ReservationResultDto> reserveSeats(
             @PathVariable UUID showId,
-            @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyHeader,
             @Valid @RequestBody ReserveSeatRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
+        String key = (idempotencyHeader != null && !idempotencyHeader.isBlank())
+                ? idempotencyHeader
+                : (request != null ? request.getIdempotencyKey() : null);
+
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("Idempotency key is required via Idempotency-Key header or idempotency_key in request body");
+        }
+
         UUID userId = currentUser.getId();
-        ReservationResultDto result = reservationService.reserveSeats(showId, userId, idempotencyKey, request);
+        ReservationResultDto result = reservationService.reserveSeats(showId, userId, key, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 }
+

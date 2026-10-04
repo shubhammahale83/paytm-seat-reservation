@@ -97,25 +97,47 @@ public class ShowService {
     }
 
     public ShowDto createShow(ShowDto showDto) {
-        String status = showDto.getStatus() != null ? showDto.getStatus() : "UPCOMING";
-        int availableSeats = showDto.getAvailableSeats() > 0 ? showDto.getAvailableSeats() : showDto.getTotalSeats();
+        String title = showDto.getTitle() != null ? showDto.getTitle() : "Untitled Show";
+        String status = showDto.getStatus() != null ? showDto.getStatus() : "ON_SALE";
+        long pricePaise = showDto.getPricePaise() != null ? showDto.getPricePaise() : 25000L;
+
+        List<String> seatsList = showDto.getSeats();
+        int totalSeats;
+        if (seatsList != null && !seatsList.isEmpty()) {
+            totalSeats = seatsList.size();
+        } else {
+            totalSeats = showDto.getTotalSeats() > 0 ? showDto.getTotalSeats() : 100;
+            seatsList = new java.util.ArrayList<>();
+            for (int i = 1; i <= totalSeats; i++) {
+                seatsList.add("S" + i);
+            }
+        }
+
+        int availableSeats = totalSeats;
         UUID id = showRepository.save(
-                showDto.getTitle(),
-                showDto.getDescription(),
+                title,
+                showDto.getDescription() != null ? showDto.getDescription() : "Show Description",
                 showDto.getVenue(),
                 showDto.getShowTime(),
-                showDto.getTotalSeats(),
+                totalSeats,
                 availableSeats,
                 status
         );
-        for (int i = 1; i <= showDto.getTotalSeats(); i++) {
-            showSeatRepository.save(id, "S" + i, "STANDARD", 1000L, "AVAILABLE");
+
+        for (String seatLabel : seatsList) {
+            showSeatRepository.save(id, seatLabel, "STANDARD", pricePaise, "AVAILABLE");
         }
+
         showDto.setId(id);
+        showDto.setTitle(title);
+        showDto.setTotalSeats(totalSeats);
         showDto.setAvailableSeats(availableSeats);
         showDto.setStatus(status);
+        showDto.setSeats(seatsList);
+        showDto.setPricePaise(pricePaise);
         return showDto;
     }
+
 
     public List<ShowDto> getAllShows() {
         List<Map<String, Object>> shows = showRepository.findAll();
